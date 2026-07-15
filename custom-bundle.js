@@ -127,9 +127,8 @@ module.exports.activate = (api) => {
                 container.style.position = "fixed";
                 container.style.left = "-9999px";
                 container.style.top = "0";
-                container.style.width = "1px";
-                container.style.height = "1px";
-                container.style.overflow = "hidden";
+                container.style.opacity = "0";
+                container.style.pointerEvents = "none";
 
                 for (const item of items) {
                     const htmlBlob = await getClipboardItemType(item, "text/html");
@@ -150,9 +149,27 @@ module.exports.activate = (api) => {
                     if (imageType && typeof item.getType === "function") {
                         const imageBlob = await item.getType(imageType);
                         const image = document.createElement("img");
-                        image.src = await blobToDataUrl(imageBlob);
                         image.alt = "";
+
+                        const imageLoaded = new Promise((resolve) => {
+                            let done = false;
+                            const finish = () => {
+                                if (done) return;
+                                done = true;
+                                resolve();
+                            };
+                            image.onload = finish;
+                            image.onerror = finish;
+                            setTimeout(finish, 500);
+                        });
+
+                        image.src = await blobToDataUrl(imageBlob);
                         container.appendChild(image);
+                        if (typeof image.decode === "function") {
+                            await image.decode().catch(() => undefined);
+                        } else {
+                            await imageLoaded;
+                        }
                     }
                 }
 
@@ -185,11 +202,12 @@ module.exports.activate = (api) => {
                     configurable: true,
                     value: async (items) => {
                         try {
+                            await originalWrite(items);
+                            api.logger.log("copied rich clipboard payload via native write");
+                        } catch (nativeError) {
+                            api.logger.warn("native rich clipboard write failed; trying fallback", nativeError);
                             await fallbackCopyItems(items);
                             api.logger.log("copied rich clipboard payload via fallback");
-                        } catch (fallbackError) {
-                            api.logger.warn("rich clipboard fallback failed; trying original write", fallbackError);
-                            return originalWrite(items);
                         }
                     },
                 });

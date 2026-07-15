@@ -13,8 +13,20 @@ function createMockDocument() {
             style: {},
             value: "",
             textContent: "",
-            innerHTML: "",
+            _innerHTML: "",
             contentEditable: "",
+            get innerHTML() {
+                if (this._innerHTML) return this._innerHTML;
+                return this.children.map(child => child.outerHTML ?? child.textContent ?? "").join("");
+            },
+            set innerHTML(value) {
+                this._innerHTML = value;
+            },
+            get outerHTML() {
+                const attrs = Object.entries(this.attributes).map(([key, value]) => ` ${key}="${value}"`).join("");
+                if (this.tagName === "IMG") return `<img${attrs} src="${this.src ?? ""}" alt="${this.alt ?? ""}">`;
+                return `<${this.tagName.toLowerCase()}${attrs}>${this.textContent}${this.innerHTML}</${this.tagName.toLowerCase()}>`;
+            },
             appendChild(child) {
                 this.children.push(child);
                 child.parentNode = this;
@@ -52,7 +64,8 @@ function createMockDocument() {
         createElement: makeElement,
         execCommand(command) {
             this.lastCommand = command;
-            return true;
+            this.copiedHTML = appended[appended.length - 1]?.innerHTML ?? "";
+            return this.copiedHTML.length > 0;
         },
         createRange() {
             return {
@@ -62,6 +75,7 @@ function createMockDocument() {
             };
         },
         lastCommand: null,
+        copiedHTML: "",
     };
 }
 
@@ -128,6 +142,8 @@ test("patches navigator.clipboard.write and falls back for image ClipboardItems"
         await global.navigator.clipboard.write([item]);
 
         assert.equal(document.lastCommand, "copy");
+        assert.match(document.copiedHTML, /<img/);
+        assert.match(document.copiedHTML, /src="data:image\/png;base64,AQID"/);
         assert.equal(selection.addRangeCalled, 1);
         assert.equal(selection.removeAllRangesCalled, 2);
         assert.equal(document.appended.length, 0, "temporary copy element is removed");
