@@ -5,7 +5,8 @@ Fixes Discord in-page copy actions in Legcord, including:
 - Copy User ID
 - Copy Message ID
 - Copy Message Link
-- Other Discord menu actions that call `navigator.clipboard.writeText(...)`
+- Copy Image / rich clipboard payloads where Discord uses `navigator.clipboard.write(...)`
+- Other Discord menu actions that call `navigator.clipboard.writeText(...)` or `navigator.clipboard.write(...)`
 
 ## Why this exists
 
@@ -27,7 +28,9 @@ or Legcord logs:
 Unable to determine render window for element [object HTMLDocument]
 ```
 
-This plugin patches `navigator.clipboard.writeText` in the Discord page and falls back to a selection-based `document.execCommand("copy")` copy path.
+This plugin patches `navigator.clipboard.writeText` and `navigator.clipboard.write` in the Discord page and falls back to a selection-based `document.execCommand("copy")` copy path.
+
+For image payloads, it converts the image Blob into a data URL, places it in a temporary off-screen editable element, selects it, and copies that selection. This is a browser fallback, so native Clipboard API image writes are still preferable when they work, but it covers the Legcord failure mode where Discord's Clipboard API call is blocked.
 
 ## Install on Legcord versions with filesystem plugins
 
